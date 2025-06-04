@@ -13,8 +13,10 @@ DB_PATH = "events.db"
 
 # Настройки Selenium
 options = Options()
-options.add_argument("--headless")
-options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
+options.add_argument("--headless")  # Без GUI
+options.add_argument("--no-sandbox")  # Нужно в Docker и без GUI
+options.add_argument("--disable-dev-shm-usage")  # Избежать проблем с памятью
+options.add_argument("--disable-gpu")  # Отключить GPU
 driver = webdriver.Chrome(options=options)
 
 def create_db():
