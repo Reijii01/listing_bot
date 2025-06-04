@@ -13,6 +13,7 @@ DB_PATH = "events.db"
 # Настройки Selenium
 options = Options()
 options.add_argument("--headless")
+options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
 driver = webdriver.Chrome(options=options)
 
 def create_db():
