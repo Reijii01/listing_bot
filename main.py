@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 import sqlite3
 import time
+import tempfile
 from datetime import datetime, timedelta
 
 
