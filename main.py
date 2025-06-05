@@ -118,7 +118,7 @@ def main_loop():
             delete_old_tickers()
         except Exception as e:
             print("❌ Ошибка в цикле:", e)
-        time.sleep(120)
+        time.sleep(300)
 
 if __name__ == "__main__":
     main_loop()
