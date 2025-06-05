@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 import sqlite3
 import time
+import random
 import tempfile
 from datetime import datetime, timedelta
 
@@ -17,7 +18,7 @@ options.add_argument("--headless")  # Без GUI
 options.add_argument("--no-sandbox")  # Нужно в Docker и без GUI
 options.add_argument("--disable-dev-shm-usage")  # Избежать проблем с памятью
 options.add_argument("--disable-gpu")  # Отключить GPU
-driver = webdriver.Chrome(options=options)
+
 
 def create_db():
     conn = sqlite3.connect(DB_PATH)
@@ -37,37 +38,56 @@ def create_db():
     conn.close()
 
 def fetch_events():
-    driver.get(URL)
-    rows = driver.find_elements(By.CSS_SELECTOR, "tr.item")
-    events = []
+    # Создаём драйвер внутри функции
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
 
-    for row in rows:
-        try:
-            event_id = row.get_attribute("id")
-            date_raw = row.find_element(By.CSS_SELECTOR, "td.date").text
-            time_str = row.find_element(By.CSS_SELECTOR, "td.date .time").text
-            date_only = date_raw.replace(time_str, "").strip()
+    driver = webdriver.Chrome(options=options)
 
-            ticker = row.find_element(By.CSS_SELECTOR, "strong a").text.strip()
-            type_ = row.find_element(By.CSS_SELECTOR, "td.type").text.strip()
-            exchange = row.find_elements(By.CSS_SELECTOR, "td")[3].find_element(By.TAG_NAME, "a").text.strip()
-            pair_tag = row.find_element(By.CSS_SELECTOR, "td .pair")
-            pair = pair_tag.text.strip()
-            pair_link = pair_tag.get_attribute("href")
+    try:
+        delay = random.uniform(2, 5)
+        print(f"⏳ Задержка перед запросом: {delay:.2f} сек")
+        time.sleep(delay)
 
-            events.append({
-                "id": event_id,
-                "date": date_only,
-                "time": time_str,
-                "ticker": ticker,
-                "type": type_,
-                "exchange": exchange,
-                "pair": pair,
-                "pair_link": pair_link
-            })
-        except Exception as e:
-            print(f"⚠️ Ошибка при разборе строки: {e}")
-    return events
+        driver.get(URL)
+        rows = driver.find_elements(By.CSS_SELECTOR, "tr.item")
+        events = []
+
+        for row in rows:
+            try:
+                event_id = row.get_attribute("id")
+                date_raw = row.find_element(By.CSS_SELECTOR, "td.date").text
+                time_str = row.find_element(By.CSS_SELECTOR, "td.date .time").text
+                date_only = date_raw.replace(time_str, "").strip()
+
+                ticker = row.find_element(By.CSS_SELECTOR, "strong a").text.strip()
+                type_ = row.find_element(By.CSS_SELECTOR, "td.type").text.strip()
+                exchange = row.find_elements(By.CSS_SELECTOR, "td")[3].find_element(By.TAG_NAME, "a").text.strip()
+                pair_tag = row.find_element(By.CSS_SELECTOR, "td .pair")
+                pair = pair_tag.text.strip()
+                pair_link = pair_tag.get_attribute("href")
+
+                events.append({
+                    "id": event_id,
+                    "date": date_only,
+                    "time": time_str,
+                    "ticker": ticker,
+                    "type": type_,
+                    "exchange": exchange,
+                    "pair": pair,
+                    "pair_link": pair_link
+                })
+            except Exception as e:
+                print(f"⚠️ Ошибка при разборе строки: {e}")
+        return events
+    except Exception as e:
+        print(f"❌ Ошибка при загрузке страницы: {e}")
+        return []
+    finally:
+        driver.quit()  # Драйвер гарантированно закроется даже при ошибке
 
 def save_new_events(events):
     conn = sqlite3.connect(DB_PATH)
@@ -88,6 +108,8 @@ def save_new_events(events):
 
     conn.commit()
     conn.close()
+
+
 
 def delete_old_tickers():
     conn = sqlite3.connect(DB_PATH)
