@@ -1,7 +1,14 @@
 import time
 import sqlite3
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    CallbackContext,
+    CallbackQueryHandler,
+    MessageHandler,
+    Filters,
+)
 from config import TOKEN, DB_PATH, GROUP_CHAT_ID
 
 bot = Bot(token=TOKEN)
@@ -15,13 +22,32 @@ def get_unique_tickers():
     conn.close()
     return tickers
 
-def show_available_coins(update: Update, context: CallbackContext):
+def coins_command(update: Update, context: CallbackContext):
     if update.effective_chat.id != GROUP_CHAT_ID:
         return
 
+    context.user_data["waiting_for_ticker"] = True
+
+    keyboard = [
+        [InlineKeyboardButton("📋 Посмотреть доступные монеты", callback_data="show_coins")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    update.message.reply_text(
+        "🔍 Введите тикер монеты для поиска или выберите из списка ниже:",
+        reply_markup=reply_markup
+    )
+
+def send_available_coins_keyboard(update: Update, context: CallbackContext):
+    query = update.callback_query
+    if query.message.chat.id != GROUP_CHAT_ID:
+        return
+
+    query.answer()
+
     tickers = get_unique_tickers()
     if not tickers:
-        update.message.reply_text("⚠️ Пока нет доступных монет.")
+        query.edit_message_text("⚠️ Пока нет доступных монет.")
         return
 
     keyboard = []
@@ -31,22 +57,60 @@ def show_available_coins(update: Update, context: CallbackContext):
         if i % 4 == 0:
             keyboard.append(row)
             row = []
-    if row:  # Добавим оставшиеся кнопки, если их меньше 3
+    if row:
         keyboard.append(row)
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("💰 Доступные монеты:", reply_markup=reply_markup)
+    query.edit_message_text("💰 Доступные монеты:", reply_markup=reply_markup)
 
-def handle_coin_button(update: Update, context: CallbackContext):
+def handle_text_message(update: Update, context: CallbackContext):
+    if update.effective_chat.id != GROUP_CHAT_ID:
+        return
+
+    if context.user_data.get("waiting_for_ticker"):
+        ticker = update.message.text.strip().upper()
+        context.user_data["waiting_for_ticker"] = False
+
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT date, time, exchange FROM events WHERE ticker = ?", (ticker,))
+        rows = c.fetchall()
+        conn.close()
+
+        seen_exchanges = set()
+        unique_events = []
+        for date, time, exchange in rows:
+            if exchange not in seen_exchanges:
+                unique_events.append((date, time, exchange))
+                seen_exchanges.add(exchange)
+
+        if not unique_events:
+            update.message.reply_text(
+                f"🔎 Монета <b>{ticker}</b> пока не добавлялась ни на одну биржу.",
+                parse_mode="HTML"
+            )
+            return
+
+        message = f"📊 История добавлений монеты <b>{ticker}</b> на биржи:\n\n"
+        for date, time, exchange in unique_events:
+            message += f"📅 {date} в {time} — <b>{exchange}</b>\n"
+
+        update.message.reply_text(text=message, parse_mode="HTML")
+
+def handle_coin_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     if query.message.chat.id != GROUP_CHAT_ID:
         return
 
     query.answer()
     data = query.data
+
+    if data == "show_coins":
+        send_available_coins_keyboard(update, context)
+        return
+
     if data.startswith("coin_"):
         ticker = data.replace("coin_", "")
-
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("SELECT date, time, exchange FROM events WHERE ticker = ?", (ticker,))
@@ -154,8 +218,9 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("coins", show_available_coins))
-    dp.add_handler(CallbackQueryHandler(handle_coin_button))
+    dp.add_handler(CommandHandler("coins", coins_command))
+    dp.add_handler(CallbackQueryHandler(handle_coin_callback))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text_message))
 
     updater.start_polling()
     print("✅ Бот запущен.")
@@ -164,4 +229,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
