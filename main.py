@@ -67,8 +67,6 @@ def fetch_events():
 
         for row in rows:
             try:
-                print("🔸 HTML строки:")
-                print(row.get_attribute("outerHTML"))  # ⬅️ Это выведет содержимое <tr> элемента
                 event_id = row.get_attribute("id")
                 date_raw = row.find_element(By.CSS_SELECTOR, "td.date").text
                 time_str = row.find_element(By.CSS_SELECTOR, "td.date .time").text
