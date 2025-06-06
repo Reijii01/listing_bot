@@ -1,6 +1,8 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import sqlite3
 import time
 import random
@@ -53,11 +55,20 @@ def fetch_events():
         time.sleep(delay)
 
         driver.get(URL)
-        rows = driver.find_elements(By.CSS_SELECTOR, "tr.item")
+        print("✅ Страница загружена. Длина source:", len(driver.page_source))
+        try:
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "tr.item")))
+            rows = driver.find_elements(By.CSS_SELECTOR, "tr.item")
+            print(f"🔍 Найдено строк: {len(rows)}")
+        except Exception as e:
+            print("❌ Не удалось найти строки с событиями:", e)
+            rows = []
         events = []
 
         for row in rows:
             try:
+                print("🔸 HTML строки:")
+                print(row.get_attribute("outerHTML"))  # ⬅️ Это выведет содержимое <tr> элемента
                 event_id = row.get_attribute("id")
                 date_raw = row.find_element(By.CSS_SELECTOR, "td.date").text
                 time_str = row.find_element(By.CSS_SELECTOR, "td.date .time").text
