@@ -24,10 +24,16 @@ def show_available_coins(update: Update, context: CallbackContext):
         update.message.reply_text("⚠️ Пока нет доступных монет.")
         return
 
-    keyboard = [
-        [InlineKeyboardButton(ticker, callback_data=f"coin_{ticker}")]
-        for ticker in tickers
-    ]
+    keyboard = []
+    row = []
+    for i, ticker in enumerate(tickers, start=1):
+        row.append(InlineKeyboardButton(ticker, callback_data=f"coin_{ticker}"))
+        if i % 4 == 0:
+            keyboard.append(row)
+            row = []
+    if row:  # Добавим оставшиеся кнопки, если их меньше 3
+        keyboard.append(row)
+
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text("💰 Доступные монеты:", reply_markup=reply_markup)
 
